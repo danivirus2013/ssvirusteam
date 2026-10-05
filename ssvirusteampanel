@@ -43,6 +43,7 @@ local function outline(parent, color, thickness, transparency)
 end
 
 local function tween(obj, time, props, style, dir)
+	if not obj or not obj.Parent then return end
 	local t = TweenService:Create(
 		obj,
 		TweenInfo.new(time, style or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out),
@@ -64,6 +65,7 @@ local gui = make("ScreenGui", {
 local rgbObjects = {}
 local spinners = {}
 local hue = 0
+local destroyed = false
 
 local function addRGB(obj, prop)
 	table.insert(rgbObjects, { obj = obj, prop = prop or "TextColor3" })
@@ -74,31 +76,42 @@ local function addSpinner(obj, speed)
 end
 
 local loop = RunService.Heartbeat:Connect(function(dt)
+	if destroyed then return end
 	hue = (hue + dt * 0.25) % 1
 	local color = Color3.fromHSV(hue, 0.85, 1)
 	for _, item in ipairs(rgbObjects) do
 		if item.obj and item.obj.Parent then
-			item.obj[item.prop] = color
+			pcall(function() item.obj[item.prop] = color end)
 		end
 	end
 	for _, s in ipairs(spinners) do
 		if s.obj and s.obj.Parent then
-			s.obj.Rotation = (s.obj.Rotation + dt * s.speed) % 360
+			pcall(function()
+				s.obj.Rotation = (s.obj.Rotation + dt * s.speed) % 360
+			end)
 		end
 	end
 end)
 
-gui.Destroying:Connect(function()
-	loop:Disconnect()
-end)
+local function cleanupLoop()
+	if destroyed then return end
+	destroyed = true
+	if loop then
+		loop:Disconnect()
+		loop = nil
+	end
+	rgbObjects = {}
+	spinners = {}
+end
 
 --==================================================
--- LOADING SCREEN
+-- LOADING SCREEN (CanvasGroup for clean fade)
 --==================================================
-local loading = make("Frame", {
+local loadingCanvas = make("CanvasGroup", {
 	Size = UDim2.fromScale(1, 1),
 	BackgroundColor3 = Color3.fromRGB(4, 6, 5),
 	BorderSizePixel = 0,
+	GroupTransparency = 0,
 	ZIndex = 50,
 }, gui)
 
@@ -108,7 +121,7 @@ make("UIGradient", {
 		ColorSequenceKeypoint.new(1, Color3.fromRGB(2, 3, 3)),
 	}),
 	Rotation = 90,
-}, loading)
+}, loadingCanvas)
 
 local glow = make("Frame", {
 	Size = UDim2.fromOffset(240, 240),
@@ -118,14 +131,14 @@ local glow = make("Frame", {
 	BackgroundTransparency = 0.88,
 	BorderSizePixel = 0,
 	ZIndex = 51,
-}, loading)
+}, loadingCanvas)
 round(glow, 120)
 
 task.spawn(function()
-	while glow.Parent do
+	while glow.Parent and not destroyed do
 		tween(glow, 1.1, { Size = UDim2.fromOffset(270, 270), BackgroundTransparency = 0.94 }, Enum.EasingStyle.Sine)
 		task.wait(1.1)
-		if not glow.Parent then break end
+		if not glow.Parent or destroyed then break end
 		tween(glow, 1.1, { Size = UDim2.fromOffset(230, 230), BackgroundTransparency = 0.86 }, Enum.EasingStyle.Sine)
 		task.wait(1.1)
 	end
@@ -139,7 +152,7 @@ local loadLogo = make("ImageLabel", {
 	Image = LOGO_ID,
 	ScaleType = Enum.ScaleType.Fit,
 	ZIndex = 52,
-}, loading)
+}, loadingCanvas)
 addSpinner(loadLogo, 100)
 
 local loadTitle = make("TextLabel", {
@@ -152,7 +165,7 @@ local loadTitle = make("TextLabel", {
 	TextSize = 32,
 	Font = Enum.Font.GothamBlack,
 	ZIndex = 52,
-}, loading)
+}, loadingCanvas)
 make("UIGradient", {
 	Color = ColorSequence.new({
 		ColorSequenceKeypoint.new(0, Color3.fromRGB(35, 255, 95)),
@@ -169,7 +182,7 @@ local loadStatus = make("TextLabel", {
 	TextSize = 13,
 	Font = Enum.Font.Gotham,
 	ZIndex = 52,
-}, loading)
+}, loadingCanvas)
 
 local barBack = make("Frame", {
 	Size = UDim2.fromOffset(260, 8),
@@ -178,7 +191,7 @@ local barBack = make("Frame", {
 	BackgroundColor3 = Color3.fromRGB(20, 30, 24),
 	BorderSizePixel = 0,
 	ZIndex = 52,
-}, loading)
+}, loadingCanvas)
 round(barBack, 8)
 outline(barBack, C.stroke, 1, 0.6)
 
@@ -205,7 +218,7 @@ local percent = make("TextLabel", {
 	TextSize = 12,
 	Font = Enum.Font.GothamBold,
 	ZIndex = 52,
-}, loading)
+}, loadingCanvas)
 
 local stages = {
 	{ 0, "Initializing..." },
@@ -216,6 +229,7 @@ local stages = {
 }
 
 for i = 1, 100 do
+	if destroyed then break end
 	barFill.Size = UDim2.fromScale(i / 100, 1)
 	percent.Text = i .. "%"
 	for _, s in ipairs(stages) do
@@ -228,47 +242,47 @@ end
 
 task.wait(0.25)
 
--- fade out
-do
-	local t = 0.5
-	for _, d in ipairs(loading:GetDescendants()) do
-		if d:IsA("TextLabel") then
-			tween(d, t, { TextTransparency = 1 })
-		elseif d:IsA("ImageLabel") then
-			tween(d, t, { ImageTransparency = 1 })
-		elseif d:IsA("Frame") then
-			tween(d, t, { BackgroundTransparency = 1 })
-		elseif d:IsA("UIStroke") then
-			tween(d, t, { Transparency = 1 })
-		end
-	end
-	tween(loading, t, { BackgroundTransparency = 1 })
-	task.wait(t)
-	loading:Destroy()
+-- ✅ FIX: fade کامل با CanvasGroup.GroupTransparency
+if not destroyed and loadingCanvas and loadingCanvas.Parent then
+	local fadeTween = TweenService:Create(
+		loadingCanvas,
+		TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+		{ GroupTransparency = 1 }
+	)
+	fadeTween:Play()
+	fadeTween.Completed:Wait()
+	if loadingCanvas then loadingCanvas:Destroy() end
 end
 
 --==================================================
--- MAIN PANEL
+-- MAIN PANEL (CanvasGroup for smooth fade-in/out)
 --==================================================
-local panel = make("Frame", {
+local panelCanvas = make("CanvasGroup", {
 	Size = UDim2.fromOffset(400, 380),
 	AnchorPoint = Vector2.new(0.5, 0.5),
 	Position = UDim2.fromScale(0.5, 0.5),
 	BackgroundColor3 = C.bg,
 	BackgroundTransparency = 0.05,
 	BorderSizePixel = 0,
+	GroupTransparency = 0,
 }, gui)
-round(panel, 18)
-outline(panel, C.stroke, 1.5, 0.3)
+round(panelCanvas, 18)
+outline(panelCanvas, C.stroke, 1.5, 0.3)
 make("UIGradient", {
 	Color = ColorSequence.new({
 		ColorSequenceKeypoint.new(0, Color3.fromRGB(14, 24, 18)),
 		ColorSequenceKeypoint.new(1, Color3.fromRGB(6, 9, 7)),
 	}),
 	Rotation = 90,
-}, panel)
+}, panelCanvas)
 
-local panelScale = make("UIScale", { Scale = 0.8 }, panel)
+local panel = make("Frame", {
+	Size = UDim2.fromScale(1, 1),
+	BackgroundTransparency = 1,
+	BorderSizePixel = 0,
+}, panelCanvas)
+
+local panelScale = make("UIScale", { Scale = 0.8 }, panelCanvas)
 tween(panelScale, 0.45, { Scale = 1 }, Enum.EasingStyle.Back)
 
 -- Header
@@ -312,28 +326,32 @@ make("TextLabel", {
 	TextXAlignment = Enum.TextXAlignment.Left,
 }, header)
 
-local function headerButton(text, x, size)
+local function headerButton(text, x, size, useRGB)
 	local b = make("TextButton", {
 		Size = UDim2.fromOffset(28, 28),
 		Position = UDim2.new(1, x, 0, 15),
 		BackgroundColor3 = C.card,
 		BorderSizePixel = 0,
 		Text = text,
-		TextColor3 = C.text,
+		TextColor3 = useRGB and C.text or Color3.fromRGB(230, 230, 230),
 		TextSize = size,
 		Font = Enum.Font.GothamBold,
 		AutoButtonColor = false,
 	}, header)
 	round(b, 8)
 	outline(b, C.stroke, 1, 0.5)
-	addRGB(b)
-	b.MouseEnter:Connect(function() tween(b, 0.15, { BackgroundColor3 = C.cardHover }) end)
-	b.MouseLeave:Connect(function() tween(b, 0.15, { BackgroundColor3 = C.card }) end)
+	if useRGB then addRGB(b) end
+	b.MouseEnter:Connect(function()
+		if b.Parent then tween(b, 0.15, { BackgroundColor3 = C.cardHover }) end
+	end)
+	b.MouseLeave:Connect(function()
+		if b.Parent then tween(b, 0.15, { BackgroundColor3 = C.card }) end
+	end)
 	return b
 end
 
-local closeButton = headerButton("×", -38, 20)
-local minimizeButton = headerButton("—", -72, 15)
+local closeButton = headerButton("×", -38, 20, false)
+local minimizeButton = headerButton("—", -72, 15, false)
 
 -- Tab bar
 local tabBar = make("Frame", {
@@ -396,7 +414,11 @@ local scriptsPage = make("ScrollingFrame", {
 	AutomaticCanvasSize = Enum.AutomaticSize.Y,
 }, pages)
 make("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, scriptsPage)
-make("UIPadding", { PaddingTop = UDim.new(0, 2), PaddingBottom = UDim.new(0, 4), PaddingRight = UDim.new(0, 6) }, scriptsPage)
+make("UIPadding", {
+	PaddingTop = UDim.new(0, 2),
+	PaddingBottom = UDim.new(0, 4),
+	PaddingRight = UDim.new(0, 6),
+}, scriptsPage)
 
 local infoPage = make("Frame", {
 	Size = UDim2.fromScale(1, 1),
@@ -404,14 +426,14 @@ local infoPage = make("Frame", {
 	BackgroundTransparency = 1,
 }, pages)
 
--- Script buttons
+-- ✅ FIX #1: scripts table (کاما و آکولاد درست شد)
 local scripts = {
 	{
 		name = "Fly V3",
 		desc = "Fly by Hibatzzz",
 		url = "https://rawscripts.net/raw/Universal-Script-fly-v3-by-hibatzzz-243731",
-	}
-{
+	},
+	{
 		name = "God Mode",
 		desc = "Universal God Mode",
 		url = "https://raw.githubusercontent.com/Rawbr10/Roblox-Scripts/refs/heads/main/God%20Mode%20Script%20Universal",
@@ -475,25 +497,46 @@ for i, data in ipairs(scripts) do
 	round(run, 8)
 
 	btn.MouseEnter:Connect(function()
+		if not btn.Parent then return end
 		tween(btn, 0.15, { BackgroundColor3 = C.cardHover })
 		tween(st, 0.15, { Transparency = 0.05 })
 	end)
 	btn.MouseLeave:Connect(function()
+		if not btn.Parent then return end
 		tween(btn, 0.15, { BackgroundColor3 = C.card })
 		tween(st, 0.15, { Transparency = 0.35 })
 	end)
 
 	local busy = false
 	btn.MouseButton1Click:Connect(function()
-		if busy then return end
+		if busy or not btn.Parent then return end
 		busy = true
 		descLabel.Text = "Running..."
-		local ok = pcall(function()
-			loadstring(game:HttpGet(data.url))()
+
+		-- ✅ FIX #2: loadstring با error log
+		local ok, err = pcall(function()
+			local src = game:HttpGet(data.url)
+			if not src or #src == 0 then
+				error("Empty response from URL")
+			end
+			local fn = loadstring(src)
+			if not fn then
+				error("loadstring returned nil (syntax error?)")
+			end
+			fn()
 		end)
-		descLabel.Text = ok and "Executed ✓" or "Failed ✗"
+
+		if ok then
+			descLabel.Text = "Executed ✓"
+		else
+			descLabel.Text = "Failed ✗"
+			warn("[SSVIRUS] Script error: " .. tostring(err))
+		end
+
 		task.wait(1.5)
-		descLabel.Text = data.desc
+		if descLabel.Parent then
+			descLabel.Text = data.desc
+		end
 		busy = false
 	end)
 end
@@ -555,45 +598,48 @@ local function switchTab(which)
 	if which == current then return end
 	current = which
 	local info = which == "info"
-	tween(indicator, 0.3, { Position = UDim2.new(info and 0.5 or 0, info and 3 or 3, 0, 3) }, Enum.EasingStyle.Quint)
-	tween(scriptsPage, 0.35, { Position = UDim2.fromScale(info and -1 or 0, 0) }, Enum.EasingStyle.Quint)
-	tween(infoPage, 0.35, { Position = UDim2.fromScale(info and 0 or 1, 0) }, Enum.EasingStyle.Quint)
+	tween(indicator, 0.3, {
+		Position = UDim2.new(info and 0.5 or 0, 3, 0, 3)
+	}, Enum.EasingStyle.Quint)
+	tween(scriptsPage, 0.35, {
+		Position = UDim2.fromScale(info and -1 or 0, 0)
+	}, Enum.EasingStyle.Quint)
+	tween(infoPage, 0.35, {
+		Position = UDim2.fromScale(info and 0 or 1, 0)
+	}, Enum.EasingStyle.Quint)
 end
 
 scriptsTab.MouseButton1Click:Connect(function() switchTab("scripts") end)
 infoTab.MouseButton1Click:Connect(function() switchTab("info") end)
 
--- Dragging
-local dragging, dragInput, dragStart, startPos
+-- ✅ FIX #3: Dragging بدون memory leak
+local dragging, dragStart, startPos
 
 header.InputBegan:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1
 		or input.UserInputType == Enum.UserInputType.Touch then
 		dragging = true
 		dragStart = input.Position
-		startPos = panel.Position
-		input.Changed:Connect(function()
-			if input.UserInputState == Enum.UserInputState.End then
-				dragging = false
-			end
-		end)
-	end
-end)
-
-header.InputChanged:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseMovement
-		or input.UserInputType == Enum.UserInputType.Touch then
-		dragInput = input
+		startPos = panelCanvas.Position
 	end
 end)
 
 UserInputService.InputChanged:Connect(function(input)
-	if dragging and input == dragInput then
+	if not dragging then return end
+	if input.UserInputType == Enum.UserInputType.MouseMovement
+		or input.UserInputType == Enum.UserInputType.Touch then
 		local d = input.Position - dragStart
-		panel.Position = UDim2.new(
+		panelCanvas.Position = UDim2.new(
 			startPos.X.Scale, startPos.X.Offset + d.X,
 			startPos.Y.Scale, startPos.Y.Offset + d.Y
 		)
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = false
 	end
 end)
 
@@ -614,20 +660,44 @@ local miniStroke = outline(mini, C.accent, 2, 0.1)
 addRGB(miniStroke, "Color")
 addSpinner(mini, 60)
 
+-- ✅ FIX #4: minimize با fade نرم
 minimizeButton.MouseButton1Click:Connect(function()
-	panel.Visible = false
+	if not panelCanvas or not panelCanvas.Parent then return end
+	local fadeOut = TweenService:Create(
+		panelCanvas,
+		TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+		{ GroupTransparency = 1 }
+	)
+	fadeOut:Play()
+	fadeOut.Completed:Wait()
+	if panelCanvas then panelCanvas.Visible = false end
 	mini.Visible = true
 end)
 
+-- ✅ FIX #5: restore با fade نرم
 mini.MouseButton1Click:Connect(function()
+	if not mini or not mini.Parent then return end
 	mini.Visible = false
-	panel.Visible = true
+	panelCanvas.Visible = true
+	panelCanvas.GroupTransparency = 1
 	panelScale.Scale = 0.85
 	tween(panelScale, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
+	tween(panelCanvas, 0.35, { GroupTransparency = 0 }, Enum.EasingStyle.Quad)
 end)
 
+-- ✅ FIX #6: close با fade نرم + cleanup امن
 closeButton.MouseButton1Click:Connect(function()
-	tween(panelScale, 0.25, { Scale = 0 }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
-	task.wait(0.27)
-	gui:Destroy()
+	if not panelCanvas or not panelCanvas.Parent then return end
+	local fadeOut = TweenService:Create(
+		panelCanvas,
+		TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+		{ GroupTransparency = 1 }
+	)
+	fadeOut:Play()
+	tween(panelScale, 0.35, { Scale = 0.7 }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+	fadeOut.Completed:Wait()
+	cleanupLoop()
+	if gui and gui.Parent then
+		gui:Destroy()
+	end
 end)
