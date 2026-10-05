@@ -1,0 +1,898 @@
+--// SSVIRUS PANEL - Fixed Edition
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local LOGO_ID = "rbxassetid://130910831750255"
+
+--// Theme
+local C = {
+	bg = Color3.fromRGB(9, 13, 11),
+	header = Color3.fromRGB(11, 24, 16),
+	card = Color3.fromRGB(16, 28, 21),
+	cardHover = Color3.fromRGB(22, 42, 30),
+	accent = Color3.fromRGB(35, 255, 95),
+	accentDark = Color3.fromRGB(20, 150, 55),
+	stroke = Color3.fromRGB(45, 140, 75),
+	text = Color3.fromRGB(255, 255, 255),
+	muted = Color3.fromRGB(135, 165, 145),
+	success = Color3.fromRGB(35, 255, 95),
+	fail = Color3.fromRGB(255, 70, 90),
+}
+
+--// Remove previous GUI if it exists
+local oldGui = playerGui:FindFirstChild("SSVIRUS_PANEL")
+if oldGui then
+	oldGui:Destroy()
+end
+
+local function make(className, props, parent)
+	local object = Instance.new(className)
+
+	for property, value in pairs(props or {}) do
+		object[property] = value
+	end
+
+	object.Parent = parent
+	return object
+end
+
+local function round(parent, radius)
+	return make("UICorner", {
+		CornerRadius = UDim.new(0, radius),
+	}, parent)
+end
+
+local function outline(parent, color, thickness, transparency)
+	return make("UIStroke", {
+		Color = color,
+		Thickness = thickness or 1,
+		Transparency = transparency or 0.4,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+	}, parent)
+end
+
+local function tween(object, duration, properties, style, direction)
+	local info = TweenInfo.new(
+		duration,
+		style or Enum.EasingStyle.Quad,
+		direction or Enum.EasingDirection.Out
+	)
+
+	local animation = TweenService:Create(object, info, properties)
+	animation:Play()
+
+	return animation
+end
+
+--==================================================
+-- GUI ROOT
+--==================================================
+
+local gui = make("ScreenGui", {
+	Name = "SSVIRUS_PANEL",
+	IgnoreGuiInset = true,
+	ResetOnSpawn = false,
+	ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+}, playerGui)
+
+--==================================================
+-- RGB / SPINNER SYSTEM
+--==================================================
+
+local rgbObjects = {}
+local spinners = {}
+local hue = 0
+
+local function addRGB(object, property)
+	if not object then
+		return
+	end
+
+	table.insert(rgbObjects, {
+		obj = object,
+		prop = property or "TextColor3",
+	})
+end
+
+local function addSpinner(object, speed)
+	if not object then
+		return
+	end
+
+	table.insert(spinners, {
+		obj = object,
+		speed = speed or 90,
+	})
+end
+
+local heartbeatConnection
+
+heartbeatConnection = RunService.Heartbeat:Connect(function(deltaTime)
+	hue = (hue + deltaTime * 0.25) % 1
+
+	local color = Color3.fromHSV(hue, 0.85, 1)
+
+	for i = #rgbObjects, 1, -1 do
+		local item = rgbObjects[i]
+
+		if item.obj and item.obj.Parent then
+			pcall(function()
+				item.obj[item.prop] = color
+			end)
+		else
+			table.remove(rgbObjects, i)
+		end
+	end
+
+	for i = #spinners, 1, -1 do
+		local item = spinners[i]
+
+		if item.obj and item.obj.Parent then
+			item.obj.Rotation =
+				(item.obj.Rotation + deltaTime * item.speed) % 360
+		else
+			table.remove(spinners, i)
+		end
+	end
+end)
+
+gui.Destroying:Connect(function()
+	if heartbeatConnection then
+		heartbeatConnection:Disconnect()
+		heartbeatConnection = nil
+	end
+end)
+
+--==================================================
+-- LOADING SCREEN
+--==================================================
+
+local loading = make("Frame", {
+	Size = UDim2.fromScale(1, 1),
+	BackgroundColor3 = Color3.fromRGB(4, 6, 5),
+	BorderSizePixel = 0,
+	ZIndex = 50,
+}, gui)
+
+make("UIGradient", {
+	Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(6, 22, 12)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(2, 3, 3)),
+	}),
+	Rotation = 90,
+}, loading)
+
+local glow = make("Frame", {
+	Size = UDim2.fromOffset(240, 240),
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.4),
+	BackgroundColor3 = C.accent,
+	BackgroundTransparency = 0.88,
+	BorderSizePixel = 0,
+	ZIndex = 51,
+}, loading)
+
+round(glow, 120)
+
+task.spawn(function()
+	while glow.Parent do
+		tween(
+			glow,
+			1.1,
+			{
+				Size = UDim2.fromOffset(270, 270),
+				BackgroundTransparency = 0.94,
+			},
+			Enum.EasingStyle.Sine
+		)
+
+		task.wait(1.1)
+
+		if not glow.Parent then
+			break
+		end
+
+		tween(
+			glow,
+			1.1,
+			{
+				Size = UDim2.fromOffset(230, 230),
+				BackgroundTransparency = 0.86,
+			},
+			Enum.EasingStyle.Sine
+		)
+
+		task.wait(1.1)
+	end
+end)
+
+local loadLogo = make("ImageLabel", {
+	Size = UDim2.fromOffset(150, 150),
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.4),
+	BackgroundTransparency = 1,
+	Image = LOGO_ID,
+	ScaleType = Enum.ScaleType.Fit,
+	ZIndex = 52,
+}, loading)
+
+addSpinner(loadLogo, 100)
+
+local loadTitle = make("TextLabel", {
+	Size = UDim2.new(1, 0, 0, 40),
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0.4, 100),
+	BackgroundTransparency = 1,
+	Text = "SSVIRUS",
+	TextColor3 = C.accent,
+	TextSize = 32,
+	Font = Enum.Font.GothamBlack,
+	ZIndex = 52,
+}, loading)
+
+make("UIGradient", {
+	Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(35, 255, 95)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(120, 255, 200)),
+	}),
+}, loadTitle)
+
+local loadStatus = make("TextLabel", {
+	Size = UDim2.new(1, 0, 0, 20),
+	Position = UDim2.new(0, 0, 0.4, 145),
+	BackgroundTransparency = 1,
+	Text = "Initializing...",
+	TextColor3 = C.muted,
+	TextSize = 13,
+	Font = Enum.Font.Gotham,
+	ZIndex = 52,
+}, loading)
+
+local barBack = make("Frame", {
+	Size = UDim2.fromOffset(260, 8),
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0.4, 180),
+	BackgroundColor3 = Color3.fromRGB(20, 30, 24),
+	BorderSizePixel = 0,
+	ZIndex = 52,
+}, loading)
+
+round(barBack, 8)
+outline(barBack, C.stroke, 1, 0.6)
+
+local barFill = make("Frame", {
+	Size = UDim2.fromScale(0, 1),
+	BackgroundColor3 = C.accent,
+	BorderSizePixel = 0,
+	ZIndex = 53,
+}, barBack)
+
+round(barFill, 8)
+
+make("UIGradient", {
+	Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(20, 190, 70)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(120, 255, 200)),
+	}),
+}, barFill)
+
+local percent = make("TextLabel", {
+	Size = UDim2.new(1, 0, 0, 18),
+	Position = UDim2.new(0, 0, 0.4, 196),
+	BackgroundTransparency = 1,
+	Text = "0%",
+	TextColor3 = C.text,
+	TextSize = 12,
+	Font = Enum.Font.GothamBold,
+	ZIndex = 52,
+}, loading)
+
+local stages = {
+	{0, "Initializing..."},
+	{25, "Loading modules..."},
+	{55, "Preparing interface..."},
+	{85, "Almost ready..."},
+	{100, "Welcome!"},
+}
+
+for i = 1, 100 do
+	barFill.Size = UDim2.fromScale(i / 100, 1)
+	percent.Text = i .. "%"
+
+	for _, stage in ipairs(stages) do
+		if i >= stage[1] then
+			loadStatus.Text = stage[2]
+		end
+	end
+
+	task.wait(
+		i < 30
+			and 0.025
+			or (i < 80 and 0.035 or 0.02)
+	)
+end
+
+task.wait(0.25)
+
+--==================================================
+-- MAIN PANEL
+--==================================================
+
+local panel = make("Frame", {
+	Size = UDim2.fromOffset(400, 380),
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.5),
+	BackgroundColor3 = C.bg,
+	BackgroundTransparency = 0.05,
+	BorderSizePixel = 0,
+	Visible = true,
+	ZIndex = 10,
+}, gui)
+
+round(panel, 18)
+outline(panel, C.stroke, 1.5, 0.3)
+
+make("UIGradient", {
+	Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(14, 24, 18)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(6, 9, 7)),
+	}),
+	Rotation = 90,
+}, panel)
+
+local panelScale = make("UIScale", {
+	Scale = 0.85,
+}, panel)
+
+--==================================================
+-- HEADER
+--==================================================
+
+local header = make("Frame", {
+	Size = UDim2.new(1, 0, 0, 58),
+	BackgroundColor3 = C.header,
+	BackgroundTransparency = 0.1,
+	BorderSizePixel = 0,
+}, panel)
+
+round(header, 18)
+outline(header, C.stroke, 1, 0.65)
+
+local headerLogo = make("ImageLabel", {
+	Size = UDim2.fromOffset(38, 38),
+	Position = UDim2.fromOffset(12, 10),
+	BackgroundTransparency = 1,
+	Image = LOGO_ID,
+	ScaleType = Enum.ScaleType.Fit,
+}, header)
+
+addSpinner(headerLogo, 90)
+
+make("TextLabel", {
+	Size = UDim2.new(1, -140, 0, 24),
+	Position = UDim2.fromOffset(60, 9),
+	BackgroundTransparency = 1,
+	Text = "SSVIRUS",
+	TextColor3 = C.text,
+	TextSize = 18,
+	Font = Enum.Font.GothamBlack,
+	TextXAlignment = Enum.TextXAlignment.Left,
+}, header)
+
+make("TextLabel", {
+	Size = UDim2.new(1, -140, 0, 16),
+	Position = UDim2.fromOffset(60, 32),
+	BackgroundTransparency = 1,
+	Text = "SSVIRUS TEAM",
+	TextColor3 = C.muted,
+	TextSize = 10,
+	Font = Enum.Font.Gotham,
+	TextXAlignment = Enum.TextXAlignment.Left,
+}, header)
+
+--==================================================
+-- HEADER BUTTONS
+--==================================================
+
+local function headerButton(text, x, textSize)
+	local button = make("TextButton", {
+		Size = UDim2.fromOffset(28, 28),
+		Position = UDim2.new(1, x, 0, 15),
+		BackgroundColor3 = C.card,
+		BorderSizePixel = 0,
+		Text = text,
+		TextColor3 = C.text,
+		TextSize = textSize,
+		Font = Enum.Font.GothamBold,
+		AutoButtonColor = false,
+	}, header)
+
+	round(button, 8)
+	outline(button, C.stroke, 1, 0.5)
+
+	button.MouseEnter:Connect(function()
+		tween(button, 0.15, {
+			BackgroundColor3 = C.cardHover,
+		})
+	end)
+
+	button.MouseLeave:Connect(function()
+		tween(button, 0.15, {
+			BackgroundColor3 = C.card,
+		})
+	end)
+
+	return button
+end
+
+local closeButton = headerButton("×", -38, 20)
+local minimizeButton = headerButton("—", -72, 15)
+
+--==================================================
+-- TAB BAR
+--==================================================
+
+local tabBar = make("Frame", {
+	Size = UDim2.new(1, -24, 0, 38),
+	Position = UDim2.fromOffset(12, 68),
+	BackgroundColor3 = C.card,
+	BackgroundTransparency = 0.15,
+	BorderSizePixel = 0,
+}, panel)
+
+round(tabBar, 10)
+outline(tabBar, C.stroke, 1, 0.6)
+
+local indicator = make("Frame", {
+	Size = UDim2.new(0.5, -6, 1, -6),
+	Position = UDim2.new(0, 3, 0, 3),
+	BackgroundColor3 = C.accentDark,
+	BorderSizePixel = 0,
+}, tabBar)
+
+round(indicator, 8)
+
+make("UIGradient", {
+	Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(25, 175, 65)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(15, 110, 45)),
+	}),
+	Rotation = 90,
+}, indicator)
+
+local function tabButton(text, xScale)
+	return make("TextButton", {
+		Size = UDim2.fromScale(0.5, 1),
+		Position = UDim2.fromScale(xScale, 0),
+		BackgroundTransparency = 1,
+		Text = text,
+		TextColor3 = C.text,
+		TextSize = 13,
+		Font = Enum.Font.GothamBold,
+		AutoButtonColor = false,
+		ZIndex = 2,
+	}, tabBar)
+end
+
+local scriptsTab = tabButton("Scripts", 0)
+local infoTab = tabButton("Info", 0.5)
+
+--==================================================
+-- PAGES
+--==================================================
+
+local pages = make("Frame", {
+	Size = UDim2.new(1, -24, 1, -118),
+	Position = UDim2.fromOffset(12, 112),
+	BackgroundTransparency = 1,
+	ClipsDescendants = true,
+}, panel)
+
+local scriptsPage = make("Frame", {
+	Size = UDim2.fromScale(1, 1),
+	Position = UDim2.fromScale(0, 0),
+	BackgroundTransparency = 1,
+}, pages)
+
+local infoPage = make("Frame", {
+	Size = UDim2.fromScale(1, 1),
+	Position = UDim2.fromScale(1, 0),
+	BackgroundTransparency = 1,
+}, pages)
+
+--==================================================
+-- SCRIPTS PAGE
+--==================================================
+
+local emptyIcon = make("ImageLabel", {
+	Size = UDim2.fromOffset(70, 70),
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.new(0.5, 0, 0.5, -40),
+	BackgroundTransparency = 1,
+	Image = LOGO_ID,
+	ImageTransparency = 0.7,
+	ScaleType = Enum.ScaleType.Fit,
+}, scriptsPage)
+
+addSpinner(emptyIcon, 30)
+
+make("TextLabel", {
+	Size = UDim2.new(1, 0, 0, 22),
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.new(0.5, 0, 0.5, 20),
+	BackgroundTransparency = 1,
+	Text = "No scripts available",
+	TextColor3 = C.muted,
+	TextSize = 14,
+	Font = Enum.Font.GothamBold,
+}, scriptsPage)
+
+make("TextLabel", {
+	Size = UDim2.new(1, 0, 0, 16),
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.new(0.5, 0, 0.5, 42),
+	BackgroundTransparency = 1,
+	Text = "Stay tuned...",
+	TextColor3 = C.muted,
+	TextSize = 11,
+	Font = Enum.Font.Gotham,
+	TextTransparency = 0.3,
+}, scriptsPage)
+
+--==================================================
+-- INFO PAGE
+--==================================================
+
+local infoLogo = make("ImageLabel", {
+	Size = UDim2.fromOffset(64, 64),
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 4),
+	BackgroundTransparency = 1,
+	Image = LOGO_ID,
+	ScaleType = Enum.ScaleType.Fit,
+}, infoPage)
+
+addSpinner(infoLogo, 60)
+
+local infoTitle = make("TextLabel", {
+	Size = UDim2.new(1, 0, 0, 24),
+	Position = UDim2.fromOffset(0, 72),
+	BackgroundTransparency = 1,
+	Text = "SSVIRUS TEAM",
+	TextColor3 = C.accent,
+	TextSize = 18,
+	Font = Enum.Font.GothamBlack,
+}, infoPage)
+
+addRGB(infoTitle)
+
+local function infoCard(y, label, name)
+	local card = make("Frame", {
+		Size = UDim2.new(1, -6, 0, 50),
+		Position = UDim2.fromOffset(0, y),
+		BackgroundColor3 = C.card,
+		BorderSizePixel = 0,
+	}, infoPage)
+
+	round(card, 12)
+	outline(card, C.stroke, 1.2, 0.35)
+
+	make("TextLabel", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		RichText = true,
+		Text = string.format(
+			'<font color="rgb(135,165,145)">%s</font>  <font color="rgb(35,255,95)"><b>%s</b></font>',
+			label,
+			name
+		),
+		TextColor3 = C.text,
+		TextSize = 17,
+		Font = Enum.Font.GothamMedium,
+	}, card)
+end
+
+infoCard(106, "Owner :", "C00LWHITE")
+infoCard(164, "Owner 2 :", "SSDEVIL")
+infoCard(222, "Owner 3 :", "Sskid")
+
+--==================================================
+-- LOADING FADE
+--==================================================
+
+local fadeDuration = 0.55
+
+for _, object in ipairs(loading:GetDescendants()) do
+	if object:IsA("TextLabel") or object:IsA("TextButton") then
+		tween(object, fadeDuration, {
+			TextTransparency = 1,
+		})
+
+	elseif object:IsA("ImageLabel") or object:IsA("ImageButton") then
+		tween(object, fadeDuration, {
+			ImageTransparency = 1,
+		})
+
+	elseif object:IsA("Frame") then
+		tween(object, fadeDuration, {
+			BackgroundTransparency = 1,
+		})
+
+	elseif object:IsA("UIStroke") then
+		tween(object, fadeDuration, {
+			Transparency = 1,
+		})
+
+	-- UIGradient does NOT have a normal Transparency property
+	-- so it is intentionally skipped here.
+	end
+end
+
+tween(loading, fadeDuration, {
+	BackgroundTransparency = 1,
+})
+
+tween(
+	panelScale,
+	0.5,
+	{Scale = 1},
+	Enum.EasingStyle.Back
+)
+
+task.wait(fadeDuration)
+
+if loading and loading.Parent then
+	loading:Destroy()
+end
+
+--==================================================
+-- TAB SWITCHING
+--==================================================
+
+local currentTab = "scripts"
+
+local function switchTab(which)
+	if which == currentTab then
+		return
+	end
+
+	currentTab = which
+
+	local showingInfo = which == "info"
+
+	tween(
+		indicator,
+		0.3,
+		{
+			Position = UDim2.new(
+				showingInfo and 0.5 or 0,
+				3,
+				0,
+				3
+			),
+		},
+		Enum.EasingStyle.Quint
+	)
+
+	tween(
+		scriptsPage,
+		0.35,
+		{
+			Position = UDim2.fromScale(
+				showingInfo and -1 or 0,
+				0
+			),
+		},
+		Enum.EasingStyle.Quint
+	)
+
+	tween(
+		infoPage,
+		0.35,
+		{
+			Position = UDim2.fromScale(
+				showingInfo and 0 or 1,
+				0
+			),
+		},
+		Enum.EasingStyle.Quint
+	)
+end
+
+scriptsTab.MouseButton1Click:Connect(function()
+	switchTab("scripts")
+end)
+
+infoTab.MouseButton1Click:Connect(function()
+	switchTab("info")
+end)
+
+--==================================================
+-- DRAG SYSTEM
+--==================================================
+
+local dragging = false
+local dragStart
+local startPosition
+local dragConnection
+
+local function updateDrag(input)
+	if not dragging or not dragStart or not startPosition then
+		return
+	end
+
+	local delta = input.Position - dragStart
+
+	panel.Position = UDim2.new(
+		startPosition.X.Scale,
+		startPosition.X.Offset + delta.X,
+		startPosition.Y.Scale,
+		startPosition.Y.Offset + delta.Y
+	)
+end
+
+header.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
+
+		dragging = true
+		dragStart = input.Position
+		startPosition = panel.Position
+
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+header.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement
+		or input.UserInputType == Enum.UserInputType.Touch then
+
+		if dragConnection then
+			dragConnection:Disconnect()
+		end
+
+		dragConnection = input
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if dragging and dragConnection == input then
+		updateDrag(input)
+	end
+end)
+
+--==================================================
+-- MINIMIZE BUTTON
+--==================================================
+
+local mini = make("ImageButton", {
+	Size = UDim2.fromOffset(58, 58),
+	AnchorPoint = Vector2.new(1, 1),
+	Position = UDim2.new(1, -25, 1, -130),
+	BackgroundColor3 = C.bg,
+	BackgroundTransparency = 0.05,
+	BorderSizePixel = 0,
+	Image = LOGO_ID,
+	ScaleType = Enum.ScaleType.Fit,
+	Visible = false,
+}, gui)
+
+round(mini, 29)
+
+local miniStroke = outline(
+	mini,
+	C.accent,
+	2,
+	0.1
+)
+
+addRGB(miniStroke, "Color")
+addSpinner(mini, 60)
+
+--==================================================
+-- OPEN / CLOSE STATE
+--==================================================
+
+local isOpen = true
+local isDestroyed = false
+
+local function showPanel()
+	if isDestroyed then
+		return
+	end
+
+	mini.Visible = false
+	panel.Visible = true
+
+	panelScale.Scale = 0.85
+
+	tween(
+		panelScale,
+		0.35,
+		{Scale = 1},
+		Enum.EasingStyle.Back
+	)
+
+	isOpen = true
+end
+
+local function hidePanel()
+	if isDestroyed then
+		return
+	end
+
+	isOpen = false
+
+	tween(
+		panelScale,
+		0.25,
+		{Scale = 0},
+		Enum.EasingStyle.Back,
+		Enum.EasingDirection.In
+	)
+
+	task.delay(0.27, function()
+		if not isDestroyed and not isOpen then
+			panel.Visible = false
+		end
+	end)
+end
+
+minimizeButton.MouseButton1Click:Connect(function()
+	panel.Visible = false
+	mini.Visible = true
+	isOpen = false
+end)
+
+mini.MouseButton1Click:Connect(function()
+	showPanel()
+end)
+
+closeButton.MouseButton1Click:Connect(function()
+	if isDestroyed then
+		return
+	end
+
+	isDestroyed = true
+
+	tween(
+		panelScale,
+		0.25,
+		{Scale = 0},
+		Enum.EasingStyle.Back,
+		Enum.EasingDirection.In
+	)
+
+	task.delay(0.27, function()
+		if gui and gui.Parent then
+			gui:Destroy()
+		end
+	end)
+end)
+
+--==================================================
+-- RIGHT SHIFT TOGGLE
+--==================================================
+
+UserInputService.InputBegan:Connect(function(input, processed)
+	if processed or isDestroyed then
+		return
+	end
+
+	if input.KeyCode == Enum.KeyCode.RightShift then
+		if isOpen then
+			hidePanel()
+		else
+			showPanel()
+		end
+	end
+end)
