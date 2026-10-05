@@ -410,6 +410,11 @@ local scripts = {
 		name = "Fly V3",
 		desc = "Fly by Hibatzzz",
 		url = "https://rawscripts.net/raw/Universal-Script-fly-v3-by-hibatzzz-243731",
+	}
+{
+		name = "God Mode",
+		desc = "Universal God Mode",
+		url = "https://raw.githubusercontent.com/Rawbr10/Roblox-Scripts/refs/heads/main/God%20Mode%20Script%20Universal",
 	},
 }
 
