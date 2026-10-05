@@ -1,4 +1,4 @@
---// SSVIRUS PANEL - Redesigned UI
+--// SSVIRUS PANEL - Fixed Version
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
@@ -60,10 +60,11 @@ local gui = make("ScreenGui", {
 	ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 }, player:WaitForChild("PlayerGui"))
 
---// One shared loop: RGB text + spinning logos
+--// Shared loop: RGB + spinners
 local rgbObjects = {}
 local spinners = {}
 local hue = 0
+local destroyed = false
 
 local function addRGB(obj, prop)
 	table.insert(rgbObjects, { obj = obj, prop = prop or "TextColor3" })
@@ -74,23 +75,33 @@ local function addSpinner(obj, speed)
 end
 
 local loop = RunService.Heartbeat:Connect(function(dt)
+	if destroyed then return end
 	hue = (hue + dt * 0.25) % 1
 	local color = Color3.fromHSV(hue, 0.85, 1)
 	for _, item in ipairs(rgbObjects) do
 		if item.obj and item.obj.Parent then
-			item.obj[item.prop] = color
+			pcall(function() item.obj[item.prop] = color end)
 		end
 	end
 	for _, s in ipairs(spinners) do
 		if s.obj and s.obj.Parent then
-			s.obj.Rotation = (s.obj.Rotation + dt * s.speed) % 360
+			pcall(function()
+				s.obj.Rotation = (s.obj.Rotation + dt * s.speed) % 360
+			end)
 		end
 	end
 end)
 
-gui.Destroying:Connect(function()
-	loop:Disconnect()
-end)
+local function cleanupLoop()
+	if destroyed then return end
+	destroyed = true
+	if loop then
+		loop:Disconnect()
+		loop = nil
+	end
+	rgbObjects = {}
+	spinners = {}
+end
 
 --==================================================
 -- LOADING SCREEN
@@ -102,7 +113,7 @@ local loading = make("Frame", {
 	ZIndex = 50,
 }, gui)
 
-make("UIGradient", {
+local loadingGradient = make("UIGradient", {
 	Color = ColorSequence.new({
 		ColorSequenceKeypoint.new(0, Color3.fromRGB(6, 22, 12)),
 		ColorSequenceKeypoint.new(1, Color3.fromRGB(2, 3, 3)),
@@ -122,10 +133,10 @@ local glow = make("Frame", {
 round(glow, 120)
 
 task.spawn(function()
-	while glow.Parent do
+	while glow.Parent and not destroyed do
 		tween(glow, 1.1, { Size = UDim2.fromOffset(270, 270), BackgroundTransparency = 0.94 }, Enum.EasingStyle.Sine)
 		task.wait(1.1)
-		if not glow.Parent then break end
+		if not glow.Parent or destroyed then break end
 		tween(glow, 1.1, { Size = UDim2.fromOffset(230, 230), BackgroundTransparency = 0.86 }, Enum.EasingStyle.Sine)
 		task.wait(1.1)
 	end
@@ -216,6 +227,7 @@ local stages = {
 }
 
 for i = 1, 100 do
+	if destroyed then break end
 	barFill.Size = UDim2.fromScale(i / 100, 1)
 	percent.Text = i .. "%"
 	for _, s in ipairs(stages) do
@@ -228,8 +240,8 @@ end
 
 task.wait(0.25)
 
--- fade out
-do
+-- fade out (with gradient transparency fix)
+if not destroyed then
 	local t = 0.5
 	for _, d in ipairs(loading:GetDescendants()) do
 		if d:IsA("TextLabel") then
@@ -240,11 +252,13 @@ do
 			tween(d, t, { BackgroundTransparency = 1 })
 		elseif d:IsA("UIStroke") then
 			tween(d, t, { Transparency = 1 })
+		elseif d:IsA("UIGradient") then
+			tween(d, t, { Transparency = NumberSequence.new(1) })
 		end
 	end
 	tween(loading, t, { BackgroundTransparency = 1 })
 	task.wait(t)
-	loading:Destroy()
+	if loading then loading:Destroy() end
 end
 
 --==================================================
@@ -312,28 +326,32 @@ make("TextLabel", {
 	TextXAlignment = Enum.TextXAlignment.Left,
 }, header)
 
-local function headerButton(text, x, size)
+local function headerButton(text, x, size, useRGB)
 	local b = make("TextButton", {
 		Size = UDim2.fromOffset(28, 28),
 		Position = UDim2.new(1, x, 0, 15),
 		BackgroundColor3 = C.card,
 		BorderSizePixel = 0,
 		Text = text,
-		TextColor3 = C.text,
+		TextColor3 = useRGB and C.text or Color3.fromRGB(230, 230, 230),
 		TextSize = size,
 		Font = Enum.Font.GothamBold,
 		AutoButtonColor = false,
 	}, header)
 	round(b, 8)
 	outline(b, C.stroke, 1, 0.5)
-	addRGB(b)
-	b.MouseEnter:Connect(function() tween(b, 0.15, { BackgroundColor3 = C.cardHover }) end)
-	b.MouseLeave:Connect(function() tween(b, 0.15, { BackgroundColor3 = C.card }) end)
+	if useRGB then addRGB(b) end
+	b.MouseEnter:Connect(function()
+		if b.Parent then tween(b, 0.15, { BackgroundColor3 = C.cardHover }) end
+	end)
+	b.MouseLeave:Connect(function()
+		if b.Parent then tween(b, 0.15, { BackgroundColor3 = C.card }) end
+	end)
 	return b
 end
 
-local closeButton = headerButton("×", -38, 20)
-local minimizeButton = headerButton("—", -72, 15)
+local closeButton = headerButton("×", -38, 20, false)
+local minimizeButton = headerButton("—", -72, 15, false)
 
 -- Tab bar
 local tabBar = make("Frame", {
@@ -396,7 +414,11 @@ local scriptsPage = make("ScrollingFrame", {
 	AutomaticCanvasSize = Enum.AutomaticSize.Y,
 }, pages)
 make("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, scriptsPage)
-make("UIPadding", { PaddingTop = UDim.new(0, 2), PaddingBottom = UDim.new(0, 4), PaddingRight = UDim.new(0, 6) }, scriptsPage)
+make("UIPadding", {
+	PaddingTop = UDim.new(0, 2),
+	PaddingBottom = UDim.new(0, 4),
+	PaddingRight = UDim.new(0, 6),
+}, scriptsPage)
 
 local infoPage = make("Frame", {
 	Size = UDim2.fromScale(1, 1),
@@ -404,12 +426,15 @@ local infoPage = make("Frame", {
 	BackgroundTransparency = 1,
 }, pages)
 
--- Script buttons
+-- ✅ FIX #1: scripts table حالا آرایه‌ست
 local scripts = {
+	{
 		name = "Fly V3",
-		desc = "Fly V3",
+		desc = "Fly V3 by hibatzzz",
 		url = "https://rawscripts.net/raw/Universal-Script-fly-v3-by-hibatzzz-243731",
 	},
+	-- می‌تونی اسکریپت‌های دیگه اضافه کنی:
+	-- { name = "Infinite Yield", desc = "Admin commands", url = "https://..." },
 }
 
 for i, data in ipairs(scripts) do
@@ -469,25 +494,46 @@ for i, data in ipairs(scripts) do
 	round(run, 8)
 
 	btn.MouseEnter:Connect(function()
+		if not btn.Parent then return end
 		tween(btn, 0.15, { BackgroundColor3 = C.cardHover })
 		tween(st, 0.15, { Transparency = 0.05 })
 	end)
 	btn.MouseLeave:Connect(function()
+		if not btn.Parent then return end
 		tween(btn, 0.15, { BackgroundColor3 = C.card })
 		tween(st, 0.15, { Transparency = 0.35 })
 	end)
 
 	local busy = false
 	btn.MouseButton1Click:Connect(function()
-		if busy then return end
+		if busy or not btn.Parent then return end
 		busy = true
 		descLabel.Text = "Running..."
-		local ok = pcall(function()
-			loadstring(game:HttpGet(data.url))()
+
+		-- ✅ FIX #2: loadstring با error log کامل
+		local ok, err = pcall(function()
+			local src = game:HttpGet(data.url)
+			if not src or #src == 0 then
+				error("Empty response from URL")
+			end
+			local fn = loadstring(src)
+			if not fn then
+				error("loadstring returned nil (syntax error?)")
+			end
+			fn()
 		end)
-		descLabel.Text = ok and "Executed ✓" or "Failed ✗"
+
+		if ok then
+			descLabel.Text = "Executed ✓"
+		else
+			descLabel.Text = "Failed ✗"
+			warn("[SSVIRUS] Script error: " .. tostring(err))
+		end
+
 		task.wait(1.5)
-		descLabel.Text = data.desc
+		if descLabel.Parent then
+			descLabel.Text = data.desc
+		end
 		busy = false
 	end)
 end
@@ -543,22 +589,28 @@ infoCard(106, "Owner :", "C00LWHITE")
 infoCard(164, "Owner 2 :", "SSDEVIL")
 infoCard(222, "Owner 3 :", "Sskid")
 
--- Tab switching (slide)
+-- ✅ FIX #3: switchTab تمیز
 local current = "scripts"
 local function switchTab(which)
 	if which == current then return end
 	current = which
 	local info = which == "info"
-	tween(indicator, 0.3, { Position = UDim2.new(info and 0.5 or 0, info and 3 or 3, 0, 3) }, Enum.EasingStyle.Quint)
-	tween(scriptsPage, 0.35, { Position = UDim2.fromScale(info and -1 or 0, 0) }, Enum.EasingStyle.Quint)
-	tween(infoPage, 0.35, { Position = UDim2.fromScale(info and 0 or 1, 0) }, Enum.EasingStyle.Quint)
+	tween(indicator, 0.3, {
+		Position = UDim2.new(info and 0.5 or 0, 3, 0, 3)
+	}, Enum.EasingStyle.Quint)
+	tween(scriptsPage, 0.35, {
+		Position = UDim2.fromScale(info and -1 or 0, 0)
+	}, Enum.EasingStyle.Quint)
+	tween(infoPage, 0.35, {
+		Position = UDim2.fromScale(info and 0 or 1, 0)
+	}, Enum.EasingStyle.Quint)
 end
 
 scriptsTab.MouseButton1Click:Connect(function() switchTab("scripts") end)
 infoTab.MouseButton1Click:Connect(function() switchTab("info") end)
 
--- Dragging
-local dragging, dragInput, dragStart, startPos
+-- ✅ FIX #4: Dragging بدون memory leak
+local dragging, dragStart, startPos
 
 header.InputBegan:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1
@@ -566,28 +618,25 @@ header.InputBegan:Connect(function(input)
 		dragging = true
 		dragStart = input.Position
 		startPos = panel.Position
-		input.Changed:Connect(function()
-			if input.UserInputState == Enum.UserInputState.End then
-				dragging = false
-			end
-		end)
-	end
-end)
-
-header.InputChanged:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseMovement
-		or input.UserInputType == Enum.UserInputType.Touch then
-		dragInput = input
 	end
 end)
 
 UserInputService.InputChanged:Connect(function(input)
-	if dragging and input == dragInput then
+	if not dragging then return end
+	if input.UserInputType == Enum.UserInputType.MouseMovement
+		or input.UserInputType == Enum.UserInputType.Touch then
 		local d = input.Position - dragStart
 		panel.Position = UDim2.new(
 			startPos.X.Scale, startPos.X.Offset + d.X,
 			startPos.Y.Scale, startPos.Y.Offset + d.Y
 		)
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = false
 	end
 end)
 
@@ -609,19 +658,26 @@ addRGB(miniStroke, "Color")
 addSpinner(mini, 60)
 
 minimizeButton.MouseButton1Click:Connect(function()
+	if not panel or not panel.Parent then return end
 	panel.Visible = false
 	mini.Visible = true
 end)
 
 mini.MouseButton1Click:Connect(function()
+	if not mini or not mini.Parent then return end
 	mini.Visible = false
 	panel.Visible = true
 	panelScale.Scale = 0.85
 	tween(panelScale, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
 end)
 
+-- ✅ FIX #5: closeButton امن با cleanup
 closeButton.MouseButton1Click:Connect(function()
+	if not panel or not panel.Parent then return end
 	tween(panelScale, 0.25, { Scale = 0 }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
 	task.wait(0.27)
-	gui:Destroy()
+	cleanupLoop()
+	if gui and gui.Parent then
+		gui:Destroy()
+	end
 end)
