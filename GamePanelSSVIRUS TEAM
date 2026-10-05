@@ -1,0 +1,651 @@
+--// Game Panel - Crystal Theme
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+
+local player = Players.LocalPlayer
+local LOGO_ID = "rbxassetid://130910831750255"
+
+--// Theme (Crystal - glassy purple/cyan)
+local C = {
+	bg = Color3.fromRGB(18, 14, 30),
+	header = Color3.fromRGB(28, 20, 46),
+	card = Color3.fromRGB(26, 20, 44),
+	cardHover = Color3.fromRGB(38, 28, 62),
+	accent = Color3.fromRGB(160, 120, 255),
+	accent2 = Color3.fromRGB(120, 230, 255),
+	accentDark = Color3.fromRGB(90, 60, 170),
+	stroke = Color3.fromRGB(140, 120, 220),
+	text = Color3.fromRGB(248, 245, 255),
+	muted = Color3.fromRGB(180, 170, 210),
+}
+
+local function make(class, props, parent)
+	local o = Instance.new(class)
+	for k, v in pairs(props) do
+		o[k] = v
+	end
+	o.Parent = parent
+	return o
+end
+
+local function round(parent, r)
+	return make("UICorner", { CornerRadius = UDim.new(0, r) }, parent)
+end
+
+local function outline(parent, color, thickness, transparency)
+	return make("UIStroke", {
+		Color = color,
+		Thickness = thickness or 1,
+		Transparency = transparency or 0.4,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+	}, parent)
+end
+
+local function tween(obj, time, props, style, dir)
+	local t = TweenService:Create(
+		obj,
+		TweenInfo.new(time, style or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out),
+		props
+	)
+	t:Play()
+	return t
+end
+
+--// GUI root
+local gui = make("ScreenGui", {
+	Name = "Game_Panel",
+	IgnoreGuiInset = true,
+	ResetOnSpawn = false,
+	ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+}, player:WaitForChild("PlayerGui"))
+
+--// Shared loop: RGB effect
+local rgbObjects = {}
+local hue = 0
+
+local function addRGB(obj, prop)
+	table.insert(rgbObjects, { obj = obj, prop = prop or "TextColor3" })
+end
+
+local loop = RunService.Heartbeat:Connect(function(dt)
+	hue = (hue + dt * 0.18) % 1
+	local color = Color3.fromHSV(hue, 0.7, 1)
+	for _, item in ipairs(rgbObjects) do
+		if item.obj and item.obj.Parent then
+			item.obj[item.prop] = color
+		end
+	end
+end)
+
+gui.Destroying:Connect(function()
+	loop:Disconnect()
+end)
+
+--==================================================
+-- BLUR
+--==================================================
+local blur = make("BlurEffect", {
+	Size = 0,
+}, Lighting)
+
+local function fadeBlur(target, time)
+	tween(blur, time or 0.4, { Size = target })
+end
+
+--==================================================
+-- MAIN PANEL (crystal/glass style)
+--==================================================
+local panel = make("Frame", {
+	Size = UDim2.fromOffset(420, 400),
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.5),
+	BackgroundColor3 = C.bg,
+	BackgroundTransparency = 0.15,
+	BorderSizePixel = 0,
+}, gui)
+round(panel, 20)
+
+local panelStroke = outline(panel, Color3.fromRGB(200, 190, 255), 1.6, 0.15)
+
+make("UIStroke", {
+	Color = Color3.fromRGB(255, 255, 255),
+	Thickness = 1,
+	Transparency = 0.85,
+	ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+}, panel)
+
+make("UIGradient", {
+	Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(45, 30, 75)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(25, 18, 48)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(35, 45, 75)),
+	}),
+	Rotation = 130,
+}, panel)
+
+local highlight = make("Frame", {
+	Size = UDim2.new(1, -20, 0, 60),
+	Position = UDim2.fromOffset(10, 6),
+	BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+	BackgroundTransparency = 0.88,
+	BorderSizePixel = 0,
+	ZIndex = 0,
+}, panel)
+round(highlight, 16)
+make("UIGradient", {
+	Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(1, 1),
+	}),
+	Rotation = 90,
+}, highlight)
+
+local panelScale = make("UIScale", { Scale = 0.8 }, panel)
+tween(panelScale, 0.5, { Scale = 1 }, Enum.EasingStyle.Back)
+
+fadeBlur(8, 0.4)
+
+--==================================================
+-- HEADER
+--==================================================
+local header = make("Frame", {
+	Size = UDim2.new(1, 0, 0, 62),
+	BackgroundColor3 = C.header,
+	BackgroundTransparency = 0.45,
+	BorderSizePixel = 0,
+	ZIndex = 2,
+}, panel)
+round(header, 20)
+outline(header, Color3.fromRGB(200, 190, 255), 1, 0.5)
+
+make("UIGradient", {
+	Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(60, 40, 100)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(30, 22, 58)),
+	}),
+	Rotation = 90,
+}, header)
+
+local logoFrame = make("Frame", {
+	Size = UDim2.fromOffset(42, 42),
+	Position = UDim2.fromOffset(12, 10),
+	BackgroundColor3 = Color3.fromRGB(35, 25, 60),
+	BackgroundTransparency = 0.2,
+	BorderSizePixel = 0,
+	ZIndex = 3,
+}, header)
+round(logoFrame, 21)
+outline(logoFrame, Color3.fromRGB(220, 210, 255), 1.2, 0.2)
+
+local logoRing = make("Frame", {
+	Size = UDim2.fromOffset(48, 48),
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.5),
+	BackgroundTransparency = 1,
+	ZIndex = 4,
+}, logoFrame)
+round(logoRing, 24)
+local logoRingStroke = make("UIStroke", {
+	Color = C.accent,
+	Thickness = 2,
+	Transparency = 0.1,
+}, logoRing)
+addRGB(logoRingStroke, "Color")
+
+local headerLogo = make("ImageLabel", {
+	Size = UDim2.fromScale(0.85, 0.85),
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.5),
+	BackgroundTransparency = 1,
+	Image = LOGO_ID,
+	ScaleType = Enum.ScaleType.Fit,
+	ZIndex = 5,
+}, logoFrame)
+
+task.spawn(function()
+	local rot = 0
+	while logoRing.Parent do
+		rot = (rot + 60 * task.wait()) % 360
+		logoRing.Rotation = rot
+	end
+end)
+
+local titleLabel = make("TextLabel", {
+	Size = UDim2.new(1, -140, 0, 22),
+	Position = UDim2.fromOffset(66, 11),
+	BackgroundTransparency = 1,
+	Text = "GAME PANEL",
+	TextColor3 = C.text,
+	TextSize = 17,
+	Font = Enum.Font.GothamBlack,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	ZIndex = 3,
+}, header)
+addRGB(titleLabel)
+
+make("TextLabel", {
+	Size = UDim2.new(1, -140, 0, 16),
+	Position = UDim2.fromOffset(66, 34),
+	BackgroundTransparency = 1,
+	Text = "Crystal Edition",
+	TextColor3 = C.muted,
+	TextSize = 10,
+	Font = Enum.Font.Gotham,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	ZIndex = 3,
+}, header)
+
+local function headerButton(text, x, size)
+	local b = make("TextButton", {
+		Size = UDim2.fromOffset(28, 28),
+		Position = UDim2.new(1, x, 0, 17),
+		BackgroundColor3 = Color3.fromRGB(50, 35, 80),
+		BackgroundTransparency = 0.3,
+		BorderSizePixel = 0,
+		Text = text,
+		TextColor3 = C.text,
+		TextSize = size,
+		Font = Enum.Font.GothamBold,
+		AutoButtonColor = false,
+		ZIndex = 3,
+	}, header)
+	round(b, 8)
+	local s = outline(b, Color3.fromRGB(200, 190, 255), 1, 0.4)
+	b.MouseEnter:Connect(function()
+		tween(b, 0.15, { BackgroundColor3 = C.cardHover, BackgroundTransparency = 0.1 })
+		tween(s, 0.15, { Color = C.accent, Transparency = 0.05 })
+	end)
+	b.MouseLeave:Connect(function()
+		tween(b, 0.15, { BackgroundColor3 = Color3.fromRGB(50, 35, 80), BackgroundTransparency = 0.3 })
+		tween(s, 0.15, { Color = Color3.fromRGB(200, 190, 255), Transparency = 0.4 })
+	end)
+	return b
+end
+
+local closeButton = headerButton("×", -38, 20)
+local minimizeButton = headerButton("—", -72, 15)
+
+--==================================================
+-- TAB BAR
+--==================================================
+local tabBar = make("Frame", {
+	Size = UDim2.new(1, -24, 0, 40),
+	Position = UDim2.fromOffset(12, 72),
+	BackgroundColor3 = C.card,
+	BackgroundTransparency = 0.5,
+	BorderSizePixel = 0,
+	ZIndex = 2,
+}, panel)
+round(tabBar, 12)
+outline(tabBar, Color3.fromRGB(200, 190, 255), 1, 0.5)
+
+local indicator = make("Frame", {
+	Size = UDim2.new(1, -8, 1, -8),
+	Position = UDim2.new(0, 4, 0, 4),
+	BackgroundColor3 = C.accentDark,
+	BackgroundTransparency = 0.1,
+	BorderSizePixel = 0,
+}, tabBar)
+round(indicator, 10)
+make("UIGradient", {
+	Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(140, 90, 240)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(90, 220, 255)),
+	}),
+	Rotation = 0,
+}, indicator)
+
+make("TextLabel", {
+	Size = UDim2.fromScale(1, 1),
+	BackgroundTransparency = 1,
+	Text = "✦  Scripts",
+	TextColor3 = C.text,
+	TextSize = 13,
+	Font = Enum.Font.GothamBold,
+	ZIndex = 2,
+}, tabBar)
+
+--==================================================
+-- PAGE
+--==================================================
+local scriptsPage = make("ScrollingFrame", {
+	Size = UDim2.new(1, -24, 1, -124),
+	Position = UDim2.fromOffset(12, 118),
+	BackgroundTransparency = 1,
+	BorderSizePixel = 0,
+	ScrollBarThickness = 3,
+	ScrollBarImageColor3 = C.accent,
+	CanvasSize = UDim2.new(0, 0, 0, 0),
+	AutomaticCanvasSize = Enum.AutomaticSize.Y,
+	ZIndex = 2,
+}, panel)
+make("UIListLayout", { Padding = UDim.new(0, 9), SortOrder = Enum.SortOrder.LayoutOrder }, scriptsPage)
+make("UIPadding", { PaddingTop = UDim.new(0, 2), PaddingBottom = UDim.new(0, 4), PaddingRight = UDim.new(0, 6) }, scriptsPage)
+
+--==================================================
+-- SCRIPTS LIST
+--==================================================
+local scripts = {
+	{
+		name = "99 in the forest Script",
+		desc = "Foxname Hub - By EchoBuddyYTT",
+		url = "https://rawscripts.net/raw/99-Nights-in-the-Forest-Foxname-Hub-Made-By-EchoBuddyYTT-110418",
+	},
+	{
+		name = "steal an egg",
+		desc = "Steal An Egg Script",
+		url = "https://raw.githubusercontent.com/PulseZax/Loader/refs/heads/main/.lua",
+	},
+}
+
+for i, data in ipairs(scripts) do
+	local btn = make("TextButton", {
+		Size = UDim2.new(1, 0, 0, 62),
+		BackgroundColor3 = C.card,
+		BackgroundTransparency = 0.35,
+		BorderSizePixel = 0,
+		Text = "",
+		AutoButtonColor = false,
+		LayoutOrder = i,
+		ZIndex = 2,
+	}, scriptsPage)
+	round(btn, 14)
+	local st = outline(btn, Color3.fromRGB(180, 165, 240), 1.2, 0.4)
+
+	local bgGrad = make("UIGradient", {
+		Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(45, 32, 72)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(28, 20, 48)),
+		}),
+		Rotation = 90,
+	}, btn)
+
+	local cardHighlight = make("Frame", {
+		Size = UDim2.new(1, -12, 0, 18),
+		Position = UDim2.fromOffset(6, 4),
+		BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+		BackgroundTransparency = 0.9,
+		BorderSizePixel = 0,
+		ZIndex = 3,
+	}, btn)
+	round(cardHighlight, 10)
+	make("UIGradient", {
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0),
+			NumberSequenceKeypoint.new(1, 1),
+		}),
+		Rotation = 90,
+	}, cardHighlight)
+
+	local bar = make("Frame", {
+		Size = UDim2.new(0, 4, 1, -22),
+		Position = UDim2.fromOffset(9, 11),
+		BackgroundColor3 = C.accent,
+		BorderSizePixel = 0,
+		ZIndex = 4,
+	}, btn)
+	round(bar, 3)
+	addRGB(bar, "BackgroundColor3")
+
+	local dot = make("Frame", {
+		Size = UDim2.fromOffset(6, 6),
+		Position = UDim2.fromOffset(24, 15),
+		BackgroundColor3 = C.accent2,
+		BorderSizePixel = 0,
+		ZIndex = 4,
+	}, btn)
+	round(dot, 3)
+	addRGB(dot, "BackgroundColor3")
+
+	local nameLabel = make("TextLabel", {
+		Size = UDim2.new(1, -100, 0, 22),
+		Position = UDim2.fromOffset(38, 11),
+		BackgroundTransparency = 1,
+		Text = data.name,
+		TextColor3 = C.text,
+		TextSize = 15,
+		Font = Enum.Font.GothamBold,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = 4,
+	}, btn)
+	addRGB(nameLabel)
+
+	local descLabel = make("TextLabel", {
+		Size = UDim2.new(1, -100, 0, 16),
+		Position = UDim2.fromOffset(38, 34),
+		BackgroundTransparency = 1,
+		Text = data.desc,
+		TextColor3 = C.muted,
+		TextSize = 11,
+		Font = Enum.Font.Gotham,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = 4,
+	}, btn)
+
+	local run = make("TextButton", {
+		Size = UDim2.fromOffset(58, 28),
+		Position = UDim2.new(1, -68, 0.5, -14),
+		BackgroundColor3 = C.accentDark,
+		BackgroundTransparency = 0.05,
+		BorderSizePixel = 0,
+		Text = "RUN",
+		TextColor3 = C.text,
+		TextSize = 11,
+		Font = Enum.Font.GothamBold,
+		AutoButtonColor = false,
+		ZIndex = 5,
+	}, btn)
+	round(run, 9)
+	outline(run, Color3.fromRGB(220, 210, 255), 1, 0.3)
+	make("UIGradient", {
+		Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(150, 100, 240)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(90, 220, 255)),
+		}),
+		Rotation = 0,
+	}, run)
+
+	run.MouseEnter:Connect(function()
+		tween(run, 0.15, { Size = UDim2.fromOffset(62, 30), Position = UDim2.new(1, -70, 0.5, -15) })
+	end)
+	run.MouseLeave:Connect(function()
+		tween(run, 0.15, { Size = UDim2.fromOffset(58, 28), Position = UDim2.new(1, -68, 0.5, -14) })
+	end)
+
+	btn.MouseEnter:Connect(function()
+		tween(btn, 0.2, { BackgroundTransparency = 0.15 })
+		tween(st, 0.2, { Transparency = 0.05, Color = C.accent })
+		bgGrad.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(60, 42, 96)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(38, 28, 62)),
+		})
+	end)
+	btn.MouseLeave:Connect(function()
+		tween(btn, 0.2, { BackgroundTransparency = 0.35 })
+		tween(st, 0.2, { Transparency = 0.4, Color = Color3.fromRGB(180, 165, 240) })
+		bgGrad.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(45, 32, 72)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(28, 20, 48)),
+		})
+	end)
+
+	-- ============================
+	-- RUN logic (both methods)
+	-- ============================
+	local busy = false
+	local function execute()
+		if busy then return end
+		busy = true
+		descLabel.Text = "Running..."
+		descLabel.TextColor3 = C.accent2
+		local ok = pcall(function()
+			loadstring(game:HttpGet(data.url))()
+		end)
+		descLabel.Text = ok and "Executed ✓" or "Failed ✗"
+		descLabel.TextColor3 = ok and Color3.fromRGB(120, 255, 180) or Color3.fromRGB(255, 100, 100)
+		task.wait(1.5)
+		descLabel.Text = data.desc
+		descLabel.TextColor3 = C.muted
+		busy = false
+	end
+
+	-- Method 1: click on the RUN button
+	run.MouseButton1Click:Connect(execute)
+	-- Method 2: click anywhere on the card
+	btn.MouseButton1Click:Connect(execute)
+end
+
+--==================================================
+-- DRAGGING
+--==================================================
+local dragging, dragInput, dragStart, startPos
+
+header.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = true
+		dragStart = input.Position
+		startPos = panel.Position
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+header.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement
+		or input.UserInputType == Enum.UserInputType.Touch then
+		dragInput = input
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if dragging and input == dragInput then
+		local d = input.Position - dragStart
+		panel.Position = UDim2.new(
+			startPos.X.Scale, startPos.X.Offset + d.X,
+			startPos.Y.Scale, startPos.Y.Offset + d.Y
+		)
+	end
+end)
+
+--==================================================
+-- MINIMIZED FLOATING BUTTON (crystal)
+--==================================================
+local mini = make("TextButton", {
+	Size = UDim2.fromOffset(54, 54),
+	AnchorPoint = Vector2.new(1, 1),
+	Position = UDim2.new(1, -25, 1, -130),
+	BackgroundColor3 = Color3.fromRGB(35, 25, 60),
+	BackgroundTransparency = 0.2,
+	BorderSizePixel = 0,
+	Text = "≡",
+	TextColor3 = C.text,
+	TextSize = 26,
+	Font = Enum.Font.GothamBlack,
+	AutoButtonColor = false,
+	Visible = false,
+}, gui)
+round(mini, 27)
+
+local miniStroke = outline(mini, Color3.fromRGB(220, 210, 255), 1.5, 0.15)
+
+make("UIGradient", {
+	Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(65, 45, 110)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(30, 22, 55)),
+	}),
+	Rotation = 90,
+}, mini)
+
+local miniShine = make("Frame", {
+	Size = UDim2.new(1, -8, 0, 16),
+	Position = UDim2.fromOffset(4, 3),
+	BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+	BackgroundTransparency = 0.85,
+	BorderSizePixel = 0,
+	ZIndex = 2,
+}, mini)
+round(miniShine, 10)
+make("UIGradient", {
+	Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(1, 1),
+	}),
+	Rotation = 90,
+}, miniShine)
+
+local miniGlow = make("Frame", {
+	Size = UDim2.fromOffset(72, 72),
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.5),
+	BackgroundColor3 = C.accent,
+	BackgroundTransparency = 0.85,
+	BorderSizePixel = 0,
+	ZIndex = 0,
+}, mini)
+round(miniGlow, 36)
+
+task.spawn(function()
+	while miniGlow.Parent do
+		tween(miniGlow, 1.2, { BackgroundTransparency = 0.95, Size = UDim2.fromOffset(82, 82) }, Enum.EasingStyle.Sine)
+		task.wait(1.2)
+		if not miniGlow.Parent then break end
+		tween(miniGlow, 1.2, { BackgroundTransparency = 0.8, Size = UDim2.fromOffset(68, 68) }, Enum.EasingStyle.Sine)
+		task.wait(1.2)
+	end
+end)
+
+local ring = make("Frame", {
+	Size = UDim2.fromOffset(58, 58),
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.5),
+	BackgroundTransparency = 1,
+	ZIndex = 3,
+}, mini)
+round(ring, 29)
+local ringStroke = make("UIStroke", {
+	Color = C.accent,
+	Thickness = 2,
+	Transparency = 0.15,
+}, ring)
+addRGB(ringStroke, "Color")
+
+mini.MouseEnter:Connect(function()
+	tween(mini, 0.2, { Size = UDim2.fromOffset(60, 60) }, Enum.EasingStyle.Back)
+end)
+mini.MouseLeave:Connect(function()
+	tween(mini, 0.2, { Size = UDim2.fromOffset(54, 54) }, Enum.EasingStyle.Back)
+end)
+
+--==================================================
+-- SHOW / HIDE + BLUR CONTROL
+--==================================================
+minimizeButton.MouseButton1Click:Connect(function()
+	panel.Visible = false
+	mini.Visible = true
+	mini.Size = UDim2.fromOffset(0, 0)
+	tween(mini, 0.3, { Size = UDim2.fromOffset(54, 54) }, Enum.EasingStyle.Back)
+	fadeBlur(0, 0.35)
+end)
+
+mini.MouseButton1Click:Connect(function()
+	mini.Visible = false
+	panel.Visible = true
+	panelScale.Scale = 0.85
+	tween(panelScale, 0.35, { Scale = 1 }, Enum.EasingStyle.Back)
+	fadeBlur(8, 0.35)
+end)
+
+closeButton.MouseButton1Click:Connect(function()
+	tween(panelScale, 0.25, { Scale = 0 }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+	fadeBlur(0, 0.25)
+	task.wait(0.3)
+	if blur then blur:Destroy() end
+	gui:Destroy()
+end)
