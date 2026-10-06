@@ -416,6 +416,11 @@ local scripts = {
 		desc = "Universal God Mode",
 		url = "https://raw.githubusercontent.com/Rawbr10/Roblox-Scripts/refs/heads/main/God%20Mode%20Script%20Universal",
 	},
+	{
+		name = "GamePanel ssvirusteam",
+		desc = "GamePanel By ssvirus team",
+		url = "https://raw.githubusercontent.com/danivirus2013/ssvirusteam/refs/heads/main/GamePanelSSVIRUS%20TEAM",
+	},
 }
 
 for i, data in ipairs(scripts) do
